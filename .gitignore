@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.idea/
+.vscode/
+.pytest_cache/
+build/
+dist/
+*.spec
+*.zip
+data.json
+data.json.bak
+data.json.tmp
+*.lock
