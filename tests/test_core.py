@@ -91,7 +91,8 @@ class StorageTests(unittest.TestCase):
             tasks, settings, recovered = storage.load()
             self.assertFalse(recovered)
             self.assertEqual(len(tasks), 2)
-            self.assertEqual(settings["theme"], "鼠尾草")
+            # v1.1 会把旧主题名迁移为新的玻璃主题。
+            self.assertEqual(settings["theme"], "雾光玻璃")
             self.assertEqual(tasks[0].task_id, first.task_id)
 
             data_path.write_text("{broken", encoding="utf-8")

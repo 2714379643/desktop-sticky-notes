@@ -7,7 +7,8 @@ def calculate_daily_summary(tasks, task_date):
     equal_list = []
     completed = 0
     for task in tasks:
-        if task.task_date == task_date:
+        # 【助手补充】被删除的单次重复任务保留隐藏标记，统计时不计入。
+        if task.task_date == task_date and not getattr(task, "cancelled", False):
             equal_list.append(task)
             if task.completed:
                 completed += 1
