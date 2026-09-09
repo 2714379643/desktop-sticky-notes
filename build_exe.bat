@@ -1,6 +1,6 @@
 @echo off
-setlocal
-pushd "%~dp0"
+setlocal EnableExtensions
+cd /d "%~dp0"
 if errorlevel 1 goto bad_path
 
 echo ========================================
@@ -33,12 +33,16 @@ if errorlevel 1 goto failed
 if errorlevel 1 goto failed
 
 echo [3/3] Packaging the application. This may take a few minutes...
-"%PYTHON_EXE%" -m PyInstaller --noconfirm --clean --onefile --windowed --name DesktopStickyNotes main.py
+"%PYTHON_EXE%" -m PyInstaller --noconfirm --clean --onefile --windowed --name DesktopStickyNotes --add-data "sticky_notes\quotes;sticky_notes\quotes" --add-data "sticky_notes\assets;sticky_notes\assets" main.py
+if errorlevel 1 goto failed
+
+for %%F in ("sticky_notes\quotes\*.txt") do copy /Y "%%~fF" "dist\%%~nxF" >nul
 if errorlevel 1 goto failed
 
 echo.
 echo Build succeeded. The EXE is here:
 echo %CD%\dist\DesktopStickyNotes.exe
+echo The editable quote text file is in the same dist folder.
 echo.
 start "" "%CD%\dist"
 goto finish
@@ -57,12 +61,12 @@ goto finish_error
 :failed
 echo.
 echo ERROR: The build failed. Send me a screenshot of the last error lines.
+goto finish_error
 
 :finish_error
 pause
 exit /b 1
 
 :finish
-popd
 pause
 exit /b 0

@@ -5,6 +5,7 @@ __pycache__/
 .idea/
 .vscode/
 .pytest_cache/
+.ruff_cache/
 build/
 dist/
 *.spec
@@ -13,3 +14,4 @@ data.json
 data.json.bak
 data.json.tmp
 *.lock
+msgs/

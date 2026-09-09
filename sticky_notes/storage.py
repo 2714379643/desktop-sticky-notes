@@ -3,18 +3,20 @@
 import json
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from sticky_notes.models.task import Task
 from sticky_notes.validators import validate_task_date, validate_time_range
 
-
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 4
 
 DEFAULT_SETTINGS = {
-    "theme": "奶油纸",
+    "theme": "雾光玻璃",
     "font_size": 15,
     "stay_on_bottom": True,
+    "close_to_tray": True,
+    "allow_early_completion": True,
     "window_width": 490,
     "window_height": 710,
     "window_x": None,
@@ -36,8 +38,41 @@ class TaskStorage:
 
     @staticmethod
     def default_data_path():
-        data_directory = Path(r"D:\Software\desktop-sticky-notes\msgs")
-        return data_directory / "data.json"
+        """源码运行放在项目旁；打包后放在 EXE 旁。"""
+        if getattr(sys, "frozen", False):
+            app_directory = Path(sys.executable).resolve().parent
+        else:
+            app_directory = Path(__file__).resolve().parents[1]
+        return app_directory / "msgs" / "data.json"
+
+    def migrate_legacy_data(self):
+        """新目录为空时复制一份旧版数据，不删除旧文件。"""
+        if self.data_path.exists():
+            return None
+
+        candidates = []
+        local_app_data = os.getenv("LOCALAPPDATA")
+        if local_app_data:
+            candidates.append(Path(local_app_data) / "DesktopStickyNotes" / "data.json")
+        candidates.extend(
+            [
+                self.data_path.parent.parent.parent / "msgs" / "data.json",
+                Path(r"D:\Software\desktop-sticky-notes\msgs\data.json"),
+                Path(r"D:\Desktop\desktop-sticky-notes\msgs\data.json"),
+            ]
+        )
+
+        for candidate in candidates:
+            try:
+                if candidate.resolve() == self.data_path.resolve():
+                    continue
+                if candidate.is_file() and self._file_is_valid(candidate):
+                    self.data_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(candidate, self.data_path)
+                    return candidate
+            except OSError:
+                continue
+        return None
 
     def save(self, tasks, settings):
         """安全保存全部任务和设置。"""
@@ -79,6 +114,7 @@ class TaskStorage:
 
     def load(self):
         """返回 (Task 列表, 设置字典, 是否从备份恢复)。"""
+        self.migrate_legacy_data()
         if not self.data_path.exists():
             return [], DEFAULT_SETTINGS.copy(), False
 
@@ -114,7 +150,8 @@ class TaskStorage:
     def _validate_payload(self, payload):
         if not isinstance(payload, dict):
             raise StorageError("数据文件最外层必须是字典")
-        if payload.get("schema_version") != SCHEMA_VERSION:
+        schema_version = payload.get("schema_version")
+        if schema_version not in (1, 2, 3, SCHEMA_VERSION):
             raise StorageError("数据文件版本不受支持")
 
         raw_tasks = payload.get("tasks")
@@ -156,13 +193,58 @@ class TaskStorage:
 
         validate_task_date(item["task_date"])
         validate_time_range(item["start_time"], item["end_time"])
+        repeat_rule = item.get("repeat_rule", "none")
+        if repeat_rule not in ("none", "daily", "weekly", "monthly"):
+            raise ValueError("重复规则无效")
+        repeat_weekday = item.get("repeat_weekday")
+        if repeat_weekday is not None and (
+            isinstance(repeat_weekday, bool)
+            or not isinstance(repeat_weekday, int)
+            or not 0 <= repeat_weekday <= 6
+        ):
+            raise ValueError("每周重复日期必须是 0 到 6")
+        repeat_monthday = item.get("repeat_monthday")
+        if repeat_monthday is not None and (
+            isinstance(repeat_monthday, bool)
+            or not isinstance(repeat_monthday, int)
+            or not 1 <= repeat_monthday <= 31
+        ):
+            raise ValueError("每月重复日期必须是 1 到 31")
+        origin_date = item.get("recurrence_origin_date", item["task_date"])
+        validate_task_date(origin_date)
+        repeat_start = item.get("recurrence_start_date")
+        repeat_end = item.get("recurrence_end_date")
+        if repeat_start is not None:
+            validate_task_date(repeat_start)
+        if repeat_end is not None:
+            validate_task_date(repeat_end)
+        if not isinstance(item.get("generated", False), bool):
+            raise TypeError("generated 必须是布尔值")
+        if not isinstance(item.get("cancelled", False), bool):
+            raise TypeError("cancelled 必须是布尔值")
 
     @staticmethod
     def _merge_settings(settings):
         merged = DEFAULT_SETTINGS.copy()
         merged.update(settings)
 
-        if merged["theme"] not in ("奶油纸", "鼠尾草", "浅玫瑰"):
+        legacy_themes = {
+            "奶油纸": "日式庭院纸",
+            "鼠尾草": "雾光玻璃",
+            "浅玫瑰": "马卡龙晨光",
+        }
+        merged["theme"] = legacy_themes.get(merged["theme"], merged["theme"])
+        valid_themes = (
+            "雾光玻璃",
+            "日式庭院纸",
+            "黑金夜幕",
+            "马卡龙晨光",
+            "水墨留白",
+            "瑞士极简",
+            "森林手账",
+            "伊蕾娜旅记",
+        )
+        if merged["theme"] not in valid_themes:
             merged["theme"] = DEFAULT_SETTINGS["theme"]
 
         font_size = merged["font_size"]
@@ -172,6 +254,14 @@ class TaskStorage:
 
         if not isinstance(merged["stay_on_bottom"], bool):
             merged["stay_on_bottom"] = DEFAULT_SETTINGS["stay_on_bottom"]
+        if not isinstance(merged["close_to_tray"], bool):
+            merged["close_to_tray"] = DEFAULT_SETTINGS["close_to_tray"]
+        if not isinstance(merged["allow_early_completion"], bool):
+            merged["allow_early_completion"] = DEFAULT_SETTINGS[
+                "allow_early_completion"
+            ]
+        # 1.1 改为由 quotes 包提供每日文案，移除旧版手动输入设置。
+        merged.pop("quote_text", None)
 
         for key in ("window_width", "window_height"):
             value = merged[key]

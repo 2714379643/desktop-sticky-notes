@@ -6,15 +6,19 @@ from PySide6.QtCore import QLockFile
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from sticky_notes.controller import AppController
+from sticky_notes.icons import create_app_icon
 from sticky_notes.storage import TaskStorage
 
 
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("桌面便签")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion("1.1.0")
     app.setOrganizationName("ZhouziLearning")
     app.setStyle("Fusion")
+    app.setWindowIcon(create_app_icon())
+    # 关闭主窗体后仍允许托盘继续运行，真正退出由托盘菜单控制。
+    app.setQuitOnLastWindowClosed(False)
 
     data_path = TaskStorage.default_data_path()
     try:

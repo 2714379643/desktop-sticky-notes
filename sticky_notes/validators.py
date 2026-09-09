@@ -2,6 +2,8 @@
 
 from datetime import date, datetime
 
+from sticky_notes.models.task import REPEAT_RULES
+
 
 def validate_task_date(task_date):
     """检查任意任务日期；读取历史任务时使用。"""
@@ -58,3 +60,13 @@ def validate_time_range(start_time=None, end_time=None):
         raise ValueError("结束时间必须晚于开始时间")
 
     return start.strftime("%H:%M"), end.strftime("%H:%M")
+
+
+def validate_repeat_rule(repeat_rule="none"):
+    """检查重复规则，返回统一的小写英文值。"""
+    if not isinstance(repeat_rule, str):
+        raise TypeError("重复规则必须是字符串")
+    repeat_rule = repeat_rule.strip().lower()
+    if repeat_rule not in REPEAT_RULES:
+        raise ValueError("重复规则只能是 none、daily、weekly 或 monthly")
+    return repeat_rule
